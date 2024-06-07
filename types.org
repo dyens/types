@@ -1,0 +1,1485 @@
+* Зачем
+- доп проверки (+1 крутой линтер)
+  себя + ограничения кода в команде
+  быстрый поиск ошибок, не надо запускать программу, деплоить и тд..
+- Отмена тестов проверки типов
+- Все используют, надо учиться с этим жить
+- Докуменитрование сигнатур
+- Помощь в редакторе
+- Рефакторинг
+
+* Пример
+#+begin_src mypy
+def moon_weight(earth_weight: float) -> str:
+    return f'On the moon, you would weigh {earth_weight * 0.166} kilograms.'
+
+some_int: int
+some_string: str = "this is string"
+#+end_src
+
+* from __future__ import annotations
+#+begin_src python
+def func(x: "MyType"): ...
+
+class MyType: ...
+
+#+end_src
+
+If from __future__ import annotations is used, annotations are not
+evaluated at function definition time. Instead, they are stored as
+strings in __annotations__. This makes it unnecessary to use quotes
+around the annotation 
+
+* Simple types
+
+#+begin_src mypy
+x: int = 1
+x: float = 1.0
+x: bool = True
+x: str = "test"
+x: bytes = b"test"
+#+end_src
+
+* Containers
+
+Чем tuple отличается от list ?
+#+begin_src mypy
+
+
+list[int] = [1,2,3]
+tuple[int, float, str] = (0, 0.3, "a")
+
+
+# For collections on Python 3.9+, the type of the collection item is in brackets
+x: list[int] = [1]
+x: set[int] = {6, 7}
+
+# For mappings, we need the types of both keys and values
+x: dict[str, float] = {"field": 2.0}  # Python 3.9+
+
+# For tuples of fixed size, we specify the types of all the elements
+x: tuple[int, str, float] = (3, "yes", 7.5)  # Python 3.9+
+
+# For tuples of variable size, we use one type and ellipsis
+x: tuple[int, ...] = (1, 2, 3)  # Python 3.9+
+x: tuple[int, ...] = (1, "a", 3)  # Ошибка
+
+# On Python 3.8 and earlier, the name of the collection type is
+# capitalized, and the type is imported from the 'typing' module
+from typing import List, Set, Dict, Tuple
+x1: List[int] = [1]
+x2: Set[int] = {6, 7}
+x3: Dict[str, float] = {"field": 2.0}
+x4: Tuple[int, str, float] = (3, "yes", 7.5)
+x5: Tuple[int, ...] = (1, 2, 3)
+#+end_src
+
+* Any
+Совместим с любым типом и любой тим совместим с Any
+#+begin_src mypy
+from typing import Any
+
+a: Any = None
+a = []
+a = 2
+
+s: str = ''
+s = a # Внимание !
+
+def foo(item: Any) -> int:
+    item.bar()
+    return 3
+#+end_src
+
+Любой тип является потомком object и Any, но обратно неверно - вотличии от Any object не является подтипом
+любого другого типа.
+
+#+begin_src mypy
+from typing import Any
+
+def hash_a(item: object) -> int:
+    # Fails type checking; an object does not have a 'magic' method.
+    item.magic()
+    return 1
+
+def hash_b(item: Any) -> int:
+    item.magic()
+    return 1
+
+# Passes type checking, since ints and strs are subclasses of object
+hash_a(42)
+hash_a("foo")
+
+# Passes type checking, since Any is compatible with all types
+hash_b(42)
+hash_b("foo")
+#+end_src
+
+#+RESULTS:
+: /tmp/babel-VWgyKs/mypy-VQlhFZ:5: error: "object" has no attribute "magic"  [attr-defined]
+: Found 1 error in 1 file (checked 1 source file)
+
+* Union
+#+begin_src mypy
+from typing import Union
+
+# On Python 3.10+, use the | operator when something could be one of a few types
+x1: list[int | str] = [3, 5, "test", "fun"]  # Python 3.10+
+# On earlier versions, use Union
+x2: list[Union[int, str]] = [3, 5, "test", "fun"]
+#+end_src
+
+
+#+begin_src mypy
+
+# The arguments must be types and there must be at least one.
+# Unions of unions are flattened, e.g.:
+Union[Union[int, str], float] == Union[int, str, float]
+
+# Unions of a single argument vanish, e.g.:
+Union[int] == int  # The constructor actually returns int
+
+# Redundant arguments are skipped, e.g.:
+Union[int, str, int] == Union[int, str] == int | str
+
+# When comparing unions, the argument order is ignored, e.g.:
+Union[int, str] == Union[str, int]
+
+# You cannot subclass or instantiate a Union.
+# You cannot write Union[X][Y].
+#+end_src
+
+* Optional
+#+begin_src mypy
+from typing import Optional
+
+def some_condition() -> bool:
+    return True
+
+# Use Optional[X] for a value that could be None
+# Optional[X] is the same as X | None or Union[X, None]
+x: Optional[str] = "something" if some_condition() else None
+if x is not None:
+    # Mypy understands x won't be None here because of the if-statement
+    print(x.upper())
+# If you know a value can never be None due to some logic that mypy doesn't
+# understand, use an assert
+assert x is not None
+print(x.upper())
+#+end_src
+
+* Type aliases
+Для наделения физическим смыслом типов.
+Удобно для описания сложных типов.
+
+https://docs.python.org/3/reference/simple_stmts.html#type
+Нужно pip install mypy-dev
+
+typing.TypeAlias - deprecated 3.12, нужно использовать type 🤣
+
+#+begin_src mypy
+type Vector = list[float] # python3.12, mypy1.11
+
+from typing import TypeAlias # python3.11
+Vector2: TypeAlias = list[float]
+
+# From doc:
+# The type statement is new in Python 3.12. For backwards compatibility,
+# type aliases can also be created through simple assignment:
+Vector3 = list[float]
+# Врядли такое сделают deprecated в ближайшее время...
+
+def scale(scalar: float, vector: Vector) -> Vector:
+    return [scalar * num for num in vector]
+#+end_src
+
+Но что такое =list[float]=?
+
+#+begin_src python :results output
+# SANDBOX
+a = list[str]
+print(a, type(a))
+
+#from types import GenericAlias
+# https://docs.python.org/3/library/types.html#types.GenericAlias
+# Changed in version 3.9.2: This type can now be subclassed.
+x = a([1,2,3])
+print(x)
+#+end_src
+
+#+RESULTS:
+: list[str] <class 'types.GenericAlias'>
+: [1, 2, 3]
+
+* New type
+
+#+begin_src python :results output
+from typing import NewType
+
+# y = NewType(x, int); должно быть y == x
+UserId = NewType('UserId', int)
+some_id = UserId(524313)
+
+print(some_id, type(UserId), type(some_id))
+#+end_src
+
+#+RESULTS:
+: 524313 <class 'typing.NewType'> <class 'int'>
+
+Но зачем это нужно и чем это для нас отличается от TypeAlias ???
+Как вы думаете, что вернет здесь print ?
+
+#+begin_src python :results output
+from typing import NewType
+
+class A:
+    def __init__(self, v):
+        self._v = v
+        print(v)
+
+UserId = NewType('UserId', A)
+
+uid = UserId(3)
+print(type(uid))
+
+def func(v: UserId):
+    v.val 
+
+
+
+class UserId:
+   val: int
+
+func(UserId(3))
+
+#+end_src
+
+#+RESULTS:
+: <class 'int'>
+
+https://docs.python.org/3/library/typing.html#newtype
+
+* TypeVarTuple, Unpack
+
+TypeVarTuple это как обобщенный тип вроде tuple[T1, T2, T3, ...]
+
+#+begin_src mypy
+from typing import TypeVar, TypeVarTuple, Unpack
+
+T = TypeVar("T")
+Ts = TypeVarTuple("Ts")
+
+
+def move_first_element_to_last(tup: tuple[T, Unpack[Ts]]) -> tuple[Unpack[Ts], T]:
+    return (*tup[1:], tup[0])
+
+
+def move_first_element_to_last2(tup: tuple[T, *Ts]) -> tuple[*Ts, T]:
+    return (*tup[1:], tup[0])
+
+
+move_first_element_to_last(tup=(1,))
+move_first_element_to_last(tup=(1, 'spam'))
+move_first_element_to_last(tup=(1, 'spam', 3.0))
+move_first_element_to_last(tup=()) # Тут ошибка! один параметр необходим.
+#+end_src
+
+TypeVarTuple всегда используется с Unpack
+#+begin_src mypy
+x: Ts          # Not valid
+x: tuple[Ts]   # Not valid
+x: tuple[*Ts]  # The correct way to do it
+#+end_src
+
+Можно использовать как generic параметры в классах:
+
+#+begin_src mypy
+class Array[DType, *Shape]:
+    def __init__(self, shape: tuple[*Shape], dtype: DType):
+        self._shape = shape
+        self._dtype = dtype
+
+    def __getitem__(self, key: tuple[*Shape]) -> float:
+        return 0.1
+
+    def __abs__(self) -> "Array[DType, *Shape]":
+        return self
+
+    def get_shape(self) -> tuple[*Shape]:
+        return self._shape
+#+end_src
+
+Можно в Callable:
+
+#+begin_src mypy
+from typing import Callable
+
+def call_soon[*Ts](
+    callback: Callable[[*Ts], None],
+    *args: *Ts,
+) -> None:
+    callback(*args)
+#+end_src
+
+#+RESULTS:
+: Success: no issues found in 1 source file
+
+* collections.abc
+[[file:~/.local/share/mise/installs/python/3.12/lib/python3.12/_collections_abc.py::class Hashable(metaclass=ABCMeta):][collections.abc]]
+https://docs.python.org/3/library/collections.abc.html
+Хорошо параметры функции делать как можно более общими типами, а возвращающее значенее конкретным
+
+#+begin_src mypy
+async def func(x: int) -> str:
+    return "a"
+
+reveal_type(func)
+#+end_src
+
+#+RESULTS:
+: /tmp/babel-tLYvnr/mypy-4SNXXI:4: note: Revealed type is "def (x: builtins.int) -> typing.Coroutine[Any, Any, builtins.str]"
+: Success: no issues found in 1 source file
+
+#+begin_src mypy
+from collections.abc import Reversible
+
+# плохо
+def f(x: list[int]) -> list[int]:
+    return list(reversed(x))
+
+
+# хорошо
+def f2(x: Reversible[int]) -> list[int]:
+    return list(reversed(x))
+#+end_src
+
+Nominal vs structural (static duck typing) subtyping
+
+#+begin_src mypy
+
+from collections.abc import Sized, Iterable, Iterator
+
+def collect(items: Iterable[int]) -> int: ...
+
+# Nominal
+class Bucket(Sized, Iterable[int]):
+    ...
+    def __len__(self) -> int: ...
+    def __iter__(self) -> Iterator[int]: ...
+
+from collections.abc import Iterator, Iterable
+
+# Structural
+class Bucket:  # Note: no base classes
+    ...
+    def __len__(self) -> int: ...
+    def __iter__(self) -> Iterator[int]: ...
+
+result = collect(Bucket())  # Passes type check
+#+end_src
+
+
+
+Узнал про форму iter(callable, sentinel):
+#+begin_src python :results output
+a = list(1, 2, 3)
+
+for i in a:
+    do(i)
+    
+iterator = iter(a)
+
+while True:
+    try:
+        val = next(iterator)
+        do(val)
+    except StopIteration:
+        break
+
+
+c = 0
+
+def f():
+    global c
+    c += 1
+    return c
+
+
+for i in iter(f, 3):
+    print(i)
+#+end_src
+
+#+RESULTS:
+: 1
+: 2
+
+Можно использовать =__getitem__= для описания iterable
+#+begin_src python :results output
+class IT:
+    d = [0, 1]
+
+    def __getitem__(self, k):
+        return self.d[k]
+
+
+for i in IT():
+    print(i)
+#+end_src
+
+#+RESULTS:
+: 0
+: 1
+
+* Type or class objects
+=type= - covariant
+
+#+begin_src mypy
+from typing import Type # DEPRECATED
+a = 3         # Has type ``int``
+b = int       # Has type ``type[int]``
+c = type(a)   # Also has type ``type[int]``
+
+
+class User: ...
+class ProUser(User): ...
+class TeamUser(User): ...
+
+def make_new_user(user_class: type[User]) -> User:
+    # ...
+    return user_class()
+
+make_new_user(User)      # OK
+make_new_user(ProUser)   # Also OK: ``type[ProUser]`` is a subtype of ``type[User]``
+make_new_user(TeamUser)  # Still fine
+make_new_user(User())    # Error: expected ``type[User]`` but got ``User``
+make_new_user(int)       # Error: ``type[int]`` is not a subtype of ``type[User]``
+
+# Можно class, Any, TypeVar
+type[Any] == type
+#+end_src
+
+* Generics
+
+TypeVar - переменная для типа. Используется в generic functions, generic classes, generic type aliases
+
+Сигнатура:
+#+begin_src python
+class typing.TypeVar(name, *constraints, bound=None, covariant=False, contravariant=False, infer_variance=False)
+# Можно выбрать только либо covariant либо contravariant по дефолту invariant
+#+end_src
+
+** Invariant, Covariant, Contravariant
+
+#+begin_src mypy
+
+class Base:
+    ...
+
+class Child(Base):
+    ...
+
+# Child - подтип, потому что мы можем его использовать где используется Base
+
+def func(v: Base): ...
+
+func(Child())
+#+end_src
+
+#+begin_src python
+from typing import TypeVar
+
+class Fruit:
+    def eat(self) -> None:
+        return "Eat fruit"
+
+class Apple(Fruit):
+    def apple_class(self) -> str:
+        return "ранетка"
+
+
+T = TypeVar("T", bound=Fruit)
+
+class JuceMaker(Generic[T]):
+    ...
+
+# Если Fruit -> Apple, то как соотносится JuceMaker[Fruit] ?? JuceMaker[Apple] ?
+
+# Пример T - ковариантная переменная
+class Storage(Generic[T]):
+    def get(self) -> T:
+        return T()
+
+def f(v: Storage[Fruit]):
+    x: Fruit = v.get()
+    x.eat()
+    
+def f(v: Storage[Apple]):
+    x: Fruit = v.get()
+    x.eat() # Apple мы можем есть !!!
+ 
+# Пример T - контравариантная переменная
+class JuceMaker(Generic[T]):
+    def make(self, value: T):
+        print("делаем сок")
+        self._v = value
+
+def f(v: JuceMaker[Fruit]):
+    v.make(Fruit())
+    
+def f(v: JuceMaker[Apple]):
+    v.make(Fruit()) # ошибка JuceMaker.make -функция ожидает Apple, а мы передаем Fruit
+ 
+# Проверим обратное соотношение:
+
+def f(v: JuceMaker[Apple]):
+    v.make(Apple())
+    
+def f(v: JuceMaker[Fruit]):
+    v.make(Apple()) # А тут все хорошо
+ 
+
+# Переменные типов, которые используются как аргументы функции - контравариантные
+# Переменные, которые используются как результат - ковариантные
+
+# list - инвариантный, frozen_list - ковариантный
+#+end_src
+
+infer_variance - позволяет системе типов самой выводить нужную вариантность 
+https://peps.python.org/pep-0695/#variance-inference
+
+** Примеры использования TypeVar
+#+begin_src mypy
+from collections.abc import Sequence
+from typing import TypeVar
+
+U = TypeVar('U')
+
+def second(l: Sequence[U]) -> U:
+    return l[1]
+
+# New python:
+from collections.abc import Sequence
+
+def first[T](l: Sequence[T]) -> T:
+    return l[0]
+
+def first[S: str](l: Sequence[S]) -> S:
+    return l[0]
+
+def first[A: (str, bytes)](l: Sequence[A]) -> A:
+    return l[0]
+
+# Это аналагично
+
+T = TypeVar('T')  # Can be anything
+S = TypeVar('S', bound=str)  # Can be any subtype of str
+A = TypeVar('A', str, bytes)  # Must be exactly str or bytes
+#+end_src
+
+
+#+begin_src mypy
+from typing import Generic, TypeVar
+
+T = TypeVar("T")
+
+class Container(Generic[T]):
+
+    _value: T
+
+    def __init__(self, value: T) -> None:
+        self._value = value
+
+    def get(self) -> T:
+        return self._value
+
+c = Container(3)
+v: int = c.get()
+
+c2 = Container[str]("hello")
+v2: str = c2.get()
+
+print(Container.__class_getitem__(str))
+#+end_src
+
+Работает только с mypy-dev + " --enable-incomplete-feature=NewGenericSyntax"
+
+#+begin_src mypy
+from typing import Generic
+
+class Container[T]:
+    _value: T
+
+    def __init__(self, value: T) -> None:
+        self._value = value
+
+    def get(self) -> T:
+        return self._value
+#+end_src
+
+Новый синтаксис сам выводит вариантность
+#+begin_src mypy
+from typing import TypeVar, Generic, Sequence
+
+class WeirdTrio[T, B: Sequence[bytes], S: (int, str)]:
+    ...
+
+OldT = TypeVar('OldT', contravariant=True)
+OldB = TypeVar('OldB', bound=Sequence[bytes], covariant=True)
+OldS = TypeVar('OldS', int, str)
+
+class OldWeirdTrio(Generic[OldT, OldB, OldS]):
+    ...
+#+end_src
+
+typevar может использоваться при наследовании
+#+begin_src mypy
+from collections.abc import Mapping
+
+class MyDict[T](Mapping[str, T]):
+    ...
+#+end_src
+
+Без указания type parameter - используется Any
+#+begin_src mypy
+from collections.abc import Iterable
+
+class MyIterable(Iterable): # Same as Iterable[Any]
+    ...
+#+end_src
+
+* Callable
+
+#+begin_src mypy
+from collections.abc import Callable # from typing import Callable is deprecated, use linters
+
+f: Callable[[], str]
+f2: Callable[[int, float], str]
+f3: Callable[..., str]
+#+end_src
+
+Но функции посложнее выглядят. Можно так:
+
+#+begin_src mypy
+
+# This feature is deprecated. You can use callback protocols as a replacement.
+from typing import Callable
+from mypy_extensions import (Arg, DefaultArg, NamedArg,
+                             DefaultNamedArg, VarArg, KwArg)
+
+def func(__a: int,  # This convention is for nameless arguments
+         b: int,
+         c: int = 0,
+         *args: int,
+         d: int,
+         e: int = 0,
+         **kwargs: int) -> int:
+    return 3
+
+F = Callable[[int,  # Or Arg(int)
+              Arg(int, 'b'),
+              DefaultArg(int, 'c'),
+              VarArg(int),
+              NamedArg(int, 'd'),
+              DefaultNamedArg(int, 'e'),
+              KwArg(int)],
+             int]
+
+f: F = func
+#+end_src
+
+А есть еще (с этим вообще не ясно как быть с Callable):
+
+#+begin_src python
+def f(a, b, /, c, *, d, e):
+    pass
+#+end_src
+
+* ParamSpec
+#+begin_src mypy
+from typing import Callable, ParamSpec, TypeVar
+
+P = ParamSpec("P")
+T = TypeVar("T")
+
+
+def decorator(f: Callable[P, T]) -> Callable[P, T]:
+    def inner(*args: P.args, **kwargs: P.kwargs) -> T:
+        print("Called with", args, kwargs)
+        return f(*args, **kwargs)
+    return inner
+
+
+@decorator
+def my_func(x: int, y: str) -> str:
+    return y * x
+#+end_src
+
+Если в списке переменных **P - то это ParamSpec:
+
+#+begin_src mypy
+type IntFunc[**P] = Callable[P, int]
+
+def decorator[T, **P](f: Callable[P, T]) -> Callable[P, T]:
+    def inner(*args: P.args, **kwargs: P.kwargs) -> T:
+        print("Called with", args, kwargs)
+        return f(*args, **kwargs)
+    return inner
+#+end_src
+
+Может bound, covariant, contravariant
+Но это выглядит как ошибка, нет вменяемых причин использовать это:
+https://github.com/python/typing/issues/1027
+Так как это уже есть в питоне и происходит в runtime, видимо это не уберут.
+Хотя мб придумают какие то варианты использования этого...
+
+Есть еще такой трюк🫣 :
+
+#+begin_src mypy
+import time
+from contextlib import contextmanager
+from typing import Any, Callable
+
+
+@contextmanager
+def timing():
+    try:
+        start = time.time()
+        yield
+        end = time.time()
+    finally:
+        print("timing: ", end - start)
+
+
+@timing()
+def f(x: int, *, g: Callable[..., int]) -> float:
+    g()
+    return 1.1
+
+
+r = f(1, g=lambda: 3)
+assert r == 1.1
+reveal_type(f)
+#+end_src
+
+#+RESULTS:
+: /tmp/babel-VWgyKs/mypy-XNwE24:24: note: Revealed type is "def (x: builtins.int, *, g: def (*Any, **Any) -> builtins.int) -> builtins.float"
+: Success: no issues found in 1 source file
+
+* Concatenate
+
+Callable[[Concatenate[int P]], R]
+
+#+begin_src mypy
+from collections.abc import Callable
+from threading import Lock
+from typing import Concatenate
+
+my_lock = Lock()
+
+def with_lock[**P, R](f: Callable[Concatenate[Lock, P], R]) -> Callable[P, R]:
+    def inner(*args: P.args, **kwargs: P.kwargs) -> R:
+        return f(my_lock, *args, **kwargs)
+    return inner
+
+@with_lock
+def sum_threadsafe(lock: Lock, numbers: list[float]) -> float:
+    with lock:
+        return sum(numbers)
+
+sum_threadsafe([1.1, 2.2, 3.3])
+#+end_src
+
+* Сложные типы
+** Структуры
+#+begin_src mypy
+from typing import ClassVar
+
+class Point:
+
+    x: float
+    y: float
+    version: ClassVar[str] = "0.0.1"
+
+    def __init__(self, x: float, y: float) -> None:
+        self.x = x
+        self.y = y
+#+end_src
+
+
+По памяти выгодно обьявлять аттрибуты именно в =__init__=.
+Хорошая идея обьявить типы обьекта.
+Но если есть присваивание, то это уже ClassVar
+
+** Обьекты
+#+begin_src mypy
+class Point:
+
+    def __init__(self, x: float, y: float) -> None:
+        self._x = x
+        self._y = y
+
+    @classmethod
+    def from_r_phi(cls, r: float, phi: float) -> None:
+        ...
+
+    def move(self, direction: Vector2D) -> Point:
+        ...
+#+end_src
+
+Когда использовать =__=, =_= ?
+
+** from typing import NamedTuple
+Есть распаковка - но никогда это не надо (=__iter__=).
+Лучше всегда использовать dataclass (frozen, slots) - занимает меньше памяти
+Вообще это придумано для описания типов мне кажется не стоит инстанцировать такие классы
+** from typing import TypedDict
+Удобно когда приходит какой то json
+Вообще это придумано для описания типов мне кажется не стоит инстанцировать такие классы
+#+begin_src mypy
+from typing import TypedDict
+import json
+
+class Data(TypedDict):
+    name: str
+    age: int
+
+data: Data = json.load(open("my_file"))
+assert data["name"] == "aaa"
+#+end_src
+** from dataclasses import dataclass
+** from pydantic import BaseModel
+* Интерфейс, абстрактный класс, Protocol
+interface - full abstract class
+protocol - не явный interface
+
+Как лучше писать ?
+#+begin_src mypy
+from typing import Protocol
+
+class A(Protocol):
+    def m1(self):
+        ...
+
+    def m2(self):
+        pass
+
+    def m3(self):
+        raise NotImplementedError
+
+    def m4(self):
+        "This is m4 method."
+#+end_src
+
+The following protocols are provided by the typing module. All are decorated with @runtime_checkable.
+
+class typing.SupportsAbs
+    An ABC with one abstract method __abs__ that is covariant in its return type.
+
+class typing.SupportsBytes
+    An ABC with one abstract method __bytes__.
+
+class typing.SupportsComplex
+    An ABC with one abstract method __complex__.
+
+class typing.SupportsFloat
+    An ABC with one abstract method __float__.
+
+class typing.SupportsIndex
+    An ABC with one abstract method __index__.
+
+class typing.SupportsInt
+    An ABC with one abstract method __int__.
+
+class typing.SupportsRound
+    An ABC with one abstract method __round__ that is covariant in its return type.
+
+class typing.IO
+class typing.TextIO
+class typing.BinaryIO
+
+Generic type IO[AnyStr] and its subclasses TextIO(IO[str]) and BinaryIO(IO[bytes]) represent 
+
+* runtime_checkable
+#+begin_src mypy
+from typing import runtime_checkable
+
+@runtime_checkable
+class Closable(Protocol):
+    def close(self): ...
+
+assert isinstance(open('/some/file'), Closable)
+
+@runtime_checkable
+class Named(Protocol):
+    name: str
+
+import threading
+assert isinstance(threading.Thread(name='Bob'), Named)
+#+end_src
+
+* AnyStr
+Сомнительно, но ок
+#+begin_src mypy
+AnyStr = TypeVar('AnyStr', str, bytes)
+#+end_src
+
+* LiteralString
+Кмк тоже редко приеним. Ну вот с DB query хороший кейс. В остальных случаях, если нужна просто
+константа Final, Literal["abc"], а для аргумента функции обычный str, AnyStr.
+
+#+begin_src mypy
+def run_query(sql: LiteralString) -> None:
+    ...
+
+def caller(arbitrary_string: str, literal_string: LiteralString) -> None:
+    run_query("SELECT * FROM students")  # OK
+    run_query(literal_string)  # OK
+    run_query("SELECT * FROM " + literal_string)  # OK
+    run_query(arbitrary_string)  # type checker error
+    run_query(  # type checker error
+        f"SELECT * FROM students WHERE name = {arbitrary_string}"
+    )
+#+end_src
+
+* NoReturn Never
+#+begin_src mypy
+from typing import NoReturn
+
+def exc() -> NoReturn:
+    raise RuntimeError()
+
+from typing import Never
+import enum
+
+def assert_never(_: Never) -> Never:
+    raise AssertionError("This code is unreachable")
+
+class CPUInstruction(enum.Enum):
+    ADD = "add"
+    MOVE = "move"
+
+def execute(instruction: CPUInstruction) -> None:
+    match instruction:
+        case CPUInstruction.ADD:
+            print("ADD")
+        case CPUInstruction.MOVE:
+            print("MOVE")
+        case _:
+            assert_never(instruction)
+#+end_src
+
+Есть встроенный =typing.assert_never=
+
+* Self
+Пушка, постоянно ее использую
+
+#+begin_src mypy
+from typing import Self
+
+class Foo:
+    def return_self(self) -> Self:
+        ...
+        return self
+#+end_src
+
+Раньше приходилось использовать TypeVar. Такой код если что плох:
+#+begin_src mypy
+class Bar:
+    def return_self(self) -> "Bar":
+        return self
+
+
+class Baz(Bar):
+    ...
+
+b: Baz = Baz().return_self() # Ошибка
+#+end_src
+
+* Literal
+
+#+begin_src mypy
+from typing import Literal, Any, Final
+
+def validate_simple(data: Any) -> Literal[True]:  # always returns True
+    return True
+
+
+type Mode = Literal['r', 'rb', 'w', 'wb']
+def open_helper(file: str, mode: Mode) -> str:
+    return "a"
+
+open_helper('/some/path', 'r')      # Passes type check
+open_helper('/other/path', 'typo')  # Error in type checker
+
+mode = "wb"
+open_helper('/other/path', mode)  # Так к сожалению тоже не работает
+
+mode2: Literal["wb"] = "wb"
+open_helper('/other/path', mode2)  # Приходится так...
+
+mode3: Final = "wb"
+open_helper('/other/path', mode3)  # Или так...
+
+mode4: Final[str] = "wb"
+open_helper('/other/path', mode4)  # А вот так не работает...
+
+#+end_src
+
+#+RESULTS:
+: /tmp/babel-VWgyKs/mypy-xaw4C1:12: error: Argument 2 to "open_helper" has incompatible type "Literal['typo']"; expected "Literal['r', 'rb', 'w', 'wb']"  [arg-type]
+: /tmp/babel-VWgyKs/mypy-xaw4C1:15: error: Argument 2 to "open_helper" has incompatible type "str"; expected "Literal['r', 'rb', 'w', 'wb']"  [arg-type]
+: /tmp/babel-VWgyKs/mypy-xaw4C1:21: error: Argument 2 to "open_helper" has incompatible type "str"; expected "Literal['r', 'rb', 'w', 'wb']"  [arg-type]
+: Found 3 errors in 1 file (checked 1 source file)
+
+* Final
+#+begin_src mypy
+MAX_SIZE: Final = 9000
+MAX_SIZE += 1  # Error reported by type checker
+
+class Connection:
+    TIMEOUT: Final[int] = 10
+
+class FastConnector(Connection):
+    TIMEOUT = 1  # Error reported by type checker
+#+end_src
+
+#+begin_src mypy
+# так не правильно делать, смотри Literal пример
+CONSTANT: Final[str] = "VAL"
+
+# Правильно:
+CONSTANT2: Final[Literal["VAL"]] = "VAL"
+CONSTANT3: Final = "VAL"
+#+end_src
+
+* ClassVar
+
+#+begin_src mypy
+from typing import ClassVar
+
+class Starship:
+    stats: ClassVar[dict[str, int]] = {} # class variable
+    damage: int = 10                     # instance variable
+
+enterprise_d = Starship()
+enterprise_d.stats = {} # Error, setting class variable on instance
+Starship.stats = {}     # This is OK
+#+end_src
+
+#+RESULTS:
+: /tmp/babel-VWgyKs/mypy-disJsW:8: error: Cannot assign to class variable "stats" via instance  [misc]
+: Found 1 error in 1 file (checked 1 source file)
+
+* TypedDict
+Для типизации dict -а очень полезная штука
+
+#+begin_src mypy
+# Лучше всего использовать class syntax, но не всегда это возможно:
+class Point2D(TypedDict):
+    in: int
+    x-y: int
+
+# OK, functional syntax
+Point2D = TypedDict('Point2D', {'in': int, 'x-y': int})
+#+end_src
+
+Вместе с Unpack используется для аннотации kwargs
+
+#+begin_src mypy
+from typing import TypedDict, Unpack
+
+class Movie(TypedDict):
+    name: str
+    year: int
+
+def foo(**kwargs: Unpack[Movie]) -> None: 
+    return None
+
+foo(name=3)
+#+end_src
+
+#+RESULTS:
+: /tmp/babel-VWgyKs/mypy-2gLpd4:10: error: Missing named argument "year" for "foo"  [call-arg]
+: /tmp/babel-VWgyKs/mypy-2gLpd4:10: error: Argument "name" to "foo" has incompatible type "int"; expected "str"  [arg-type]
+: Found 2 errors in 1 file (checked 1 source file)
+
+** Requred NotRequired, total
+
+#+begin_src mypy
+class Point2D(TypedDict):
+    x: int
+    y: int
+    label: NotRequired[str]
+
+# Все аргументы необязательные
+class Point2D(TypedDict, total=False):
+    x: int
+    y: int
+
+# x, y - required, label - нет
+class Point2D(TypedDict, total=False):
+    x: Required[int]
+    y: Required[int]
+    label: str
+
+#+end_src
+
+
+Поддерживает наследование и TypeVar
+#+begin_src mypy
+from typing import TypedDict
+
+class Point2D[T](TypedDict, total=False):
+    x: int
+    y: int
+    val: T
+
+
+class Point3D[T](Point2D[T]):
+    z: int
+
+
+assert Point3D.__required_keys__ == frozenset({"z"})
+assert Point3D.__optional_keys__ == frozenset({"x", "y", "val"})
+#+end_src
+
+* Annotated
+
+Добавдяет метаданные к типу
+#+begin_src mypy
+from dataclasses import dataclass
+from typing import Annotated
+
+@dataclass
+class ValueRange:
+    lo: int
+    hi: int
+
+T2 = Annotated[T1, ValueRange(-20, 3), ctype("char")]
+
+# Порядок важен
+assert Annotated[int, ValueRange(3, 10), ctype("char")] != Annotated[
+    int, ctype("char"), ValueRange(3, 10)
+]
+
+# Вложенность разворачивается
+assert Annotated[Annotated[int, ValueRange(3, 10)], ctype("char")] == Annotated[
+    int, ValueRange(3, 10), ctype("char")
+]
+
+from typing import get_type_hints
+
+def func(x: Annotated[int, "metadata"]) -> None: pass
+
+
+>> get_type_hints(func)
+
+{'x': <class 'int'>, 'return': <class 'NoneType'>}
+
+>> get_type_hints(func, include_extras=True)
+{'x': typing.Annotated[int, 'metadata'], 'return': <class 'NoneType'>}
+#+end_src
+
+Для использования нужно использовать =__metadata__=
+#+begin_src python :results output
+from typing import Annotated
+
+X = Annotated[int, "very", "important", "metadata"]
+
+assert X == Annotated[int, 'very', 'important', 'metadata']
+assert X.__metadata__ == ('very', 'important', 'metadata')
+#+end_src
+
+Используется в Pydantic:
+#+begin_src python
+from uuid import uuid4
+
+from typing_extensions import Annotated
+
+from pydantic import BaseModel, Field
+
+
+class User(BaseModel):
+    id: Annotated[str, Field(default_factory=lambda: uuid4().hex)]
+
+# Вместо:
+class User(BaseModel):
+    id: str = Field(default_factory=lambda: uuid4().hex)
+#+end_src
+
+* TypeGuard
+Допустим хотим сузить тип
+#+begin_src mypy
+
+type INT_OR_STR = str | int
+
+
+def f(val: INT_OR_STR) -> str:
+    # Сузили тип
+    if isinstance(val, str):
+        return val
+    else:
+        return "a"
+
+def f2(val: INT_OR_STR) -> str:
+    # или так
+    assert isinstance(val, str)
+    return val
+#+end_src
+
+
+Но можно использовать не только isinstance а произвольную функцию для проверки типов
+
+#+begin_src mypy
+from typing import TypeGuard
+
+def is_str_list(val: list[object]) -> TypeGuard[list[str]]:
+    return all(isinstance(x, str) for x in val) # Возвращает bool
+
+def func1(val: list[object]):
+    if is_str_list(val):
+        # Type of ``val`` is narrowed to ``list[str]``.
+        print(" ".join(val))
+    else:
+        # Type of ``val`` remains as ``list[object]``.
+        print("Not a list of strings!")
+#+end_src
+
+Тут давайте отметим, что list[str] не является подтипом list[object],
+потому что list - invariant. Так что TypeGuard работает не только с сужением типа.
+
+Вобщем, если у вас функция типа =is_some_type= используем TypeGuard
+
+* cast
+#+begin_src mypy
+def f(x: Any) -> int:
+    # я точно знаю что мне приходит int
+    return cast(int, x) + 3
+#+end_src
+
+Для narrowing я использую assert, isinstance
+
+* assert_type  
+Не работает в runtime. Удобно когда надо проверить тип
+#+begin_src mypy
+def complex_function(arg: object):
+    # Do some complex type-narrowing logic,
+    # after which we hope the inferred type will be `int`
+    ...
+    # Test whether the type checker correctly understands our function
+    assert_type(arg, int)
+#+end_src
+
+* assert_never
+
+Прикольная штука, надо использовать почаще
+#+begin_src mypy
+def int_or_str(arg: int | str) -> None:
+    match arg:
+        case int():
+            print("It's an int")
+        case str():
+            print("It's a str")
+        case _ as unreachable:
+            assert_never(unreachable)
+#+end_src
+
+* reveal_type
+Печатает тип когда запускается mypy. Не надо импортировать.
+#+begin_src python
+x: int = 1
+reveal_type(x)  # Revealed type is "builtins.int"
+#+end_src
+
+* dataclass_transform
+Хак mypy для датаклассов, думаю что это не стоит использовать
+Добавляет методы, которые получаются в датаклассах динамически
+
+#+begin_src python
+@dataclass_transform()
+def create_model[T](cls: type[T]) -> type[T]:
+    ...
+    return cls
+
+@create_model
+class CustomerModel:
+    id: int
+    name: str
+#+end_src
+
+* overload, get_overloads, clear_overloads
+
+#+begin_src python :results output
+from typing import get_overloads, overload, clear_overloads
+
+@overload
+def process(response: None) -> None:
+    ...
+@overload
+def process(response: int) -> tuple[int, str]:
+    ...
+@overload
+def process(response: bytes) -> str:
+    ...
+def process(response):
+    ...  # actual implementation goes here
+
+
+print(get_overloads(process))
+clear_overloads()
+print(get_overloads(process))
+#+end_src
+
+#+RESULTS:
+: [<function process at 0x7fcb5b10a340>, <function process at 0x7fcb5ae41d00>, <function process at 0x7fcb5ae41ee0>]
+: []
+
+* final
+#+begin_src mypy
+from typing import final
+
+class Base:
+    @final
+    def done(self) -> None:
+        ...
+class Sub(Base):
+    def done(self) -> None:  # Error reported by type checker
+        ...
+
+@final
+class Leaf:
+    ...
+class Other(Leaf):  # Error reported by type checker
+    ...
+#+end_src
+
+* no_type_check
+#+begin_src mypy
+from typing import no_type_check
+
+@no_type_check
+def a(self) -> int:
+    return "string"
+#+end_src
+
+#+RESULTS:
+: Success: no issues found in 1 source file
+
+* no_type_check_decorator
+Какая-то фигня, лень разбираться, уже deprecated:
+https://github.com/python/cpython/issues/106309
+
+* override
+Надо активнее использовать
+#+begin_src mypy
+class Base:
+    def log_status(self) -> None:
+        ...
+
+class Sub(Base):
+    @override
+    def log_status(self) -> None:  # Okay: overrides Base.log_status
+        ...
+
+    @override
+    def done(self) -> None:  # Error reported by type checker
+        ...
+#+end_src
+
+* type_check_only
+Используется в stub файлах. В runtime эта функция недоступна.
+
+#+begin_src mypy
+from typing import type_check_only
+
+@type_check_only
+class Response:  # private or not available at runtime
+    code: int
+    def get_header(self, name: str) -> str:
+        return "a"
+
+def fetch_response() -> Response:
+    return Response()
+#+end_src
+
+#+RESULTS:
+: Success: no issues found in 1 source file
+
+* get_type_hints
+
+Обычно это тоже самое что и obj.__annotations__
+#+begin_src  python
+from typing import get_type_hints
+
+def func(x: int) -> str:
+    return "a"
+
+assert get_type_hints(func) == {'x': <class 'int'>, 'return': <class 'str'>}
+
+class A:
+    y: int
+
+assert get_type_hints(A) == {'y': <class 'int'>}
+#+end_src
+
+Есть еще inspect.get_annotations https://github.com/python/cpython/issues/102405
+
+#+begin_src python
+import inspect, typing
+
+class A:
+    age: int
+
+class B(A):
+    name: str
+
+print(inspect.get_annotations(B))  # {'name': <class 'str'>}
+print(typing.get_type_hints(B))  # {'age': <class 'int'>, 'name': <class 'str'>}
+#+end_src
+
+* get_origin
+
+#+begin_src python
+assert get_origin(str) is None
+assert get_origin(Dict[str, int]) is dict
+assert get_origin(Union[int, str]) is Union
+P = ParamSpec('P')
+assert get_origin(P.args) is P
+assert get_origin(P.kwargs) is P
+#+end_src
+
+* get_args
+#+begin_src python
+assert get_args(int) == ()
+assert get_args(Dict[int, str]) == (int, str)
+assert get_args(Union[int, str]) == (int, str)
+#+end_src
+
+* is_typeddict
+#+begin_src python
+class Film(TypedDict):
+    title: str
+    year: int
+
+assert is_typeddict(Film)
+assert not is_typeddict(list | str)
+
+# TypedDict is a factory for creating typed dicts,
+# not a typed dict itself
+assert not is_typeddict(TypedDict)
+#+end_src
+
+* ForwardRef
+Черная магия, для использования типов в виде строк
+
+For example, List["SomeClass"] is implicitly transformed into List[ForwardRef("SomeClass")]. ForwardRef should not be instantiated by a user, but may be used by introspection tools.
+
+* TYPE_CHECKING
+#+begin_src mypy
+
+if TYPE_CHECKING:
+    import expensive_mod
+
+def fun(arg: 'expensive_mod.SomeType') -> None:
+    local_var: expensive_mod.AnotherType = other_fun()
+#+end_src
